@@ -1,0 +1,62 @@
+# URMasterDual
+
+isRunning = True
+
+start = False
+
+a = 2.4
+dt = 0.008
+n_min = 10
+t_min = n_min*dt
+
+frame = 0       # Current frame
+t = 0           # Current script time (seconds)
+New_t = 0       # Updated time (seconds)
+Old_t = 0       # Previous time (seconds)
+
+inputs = [0,0,0,0,0,0]
+speed = [0,0,0,0,0,0]
+
+
+thread controlThread():
+
+    while isRunning:
+
+        frame = frame + 1
+        t = frame * dt
+
+        inputs = [0,0,0,0,0,0]
+        motionFlag = 0
+
+        inputs[0] = read_input_float_register(0)
+        inputs[1] = read_input_float_register(1)
+        inputs[2] = read_input_float_register(2)
+        inputs[3] = read_input_float_register(3)
+        inputs[4] = read_input_float_register(4)
+        inputs[5] = read_input_float_register(5)
+
+        motionFlag = read_input_float_register(6)
+
+        if motionFlag == 1:
+            speed = inputs
+            if start == False:
+                start = True
+                rtde_set_watchdog("input_int_register_0",1,"PAUSE")
+            end
+        else:
+            textmsg("No Input Received")
+            speed = [0, 0, 0, 0, 0, 0]
+
+        end
+        
+        sync()
+    end
+end
+
+controlHandle = run controlThread()
+
+while isRunning:
+    textmsg("Speed is ", speed)
+    speedj(speed,a,t_min)
+    sync()
+end

@@ -1,0 +1,52 @@
+%% Codigo de Testes
+
+close all
+clear all
+clc
+
+disp('Program started');
+% vrep=remApi('remoteApi','extApi.h'); % using the header (requires a compiler)
+vrep=remApi('remoteApi'); % using the prototype file (remoteApiProto.m)
+vrep.simxFinish(-1); % just in case, close all opened connections
+clientID=vrep.simxStart('127.0.0.1',19999,true,true,5000,5);
+
+if (clientID>-1)
+        disp('Connected to remote API server');
+
+        % enable the synchronous mode on the client:
+        vrep.simxSynchronous(clientID,true);
+
+        % getting handles:
+        [~, cuboidHandle] = vrep.simxGetObjectHandle(clientID,'Cuboid',vrep.simx_opmode_blocking);
+        [~, UR5_1] = vrep.simxGetObjectHandle(clientID,'UR5_1',vrep.simx_opmode_blocking);
+        [~, UR5_2] = vrep.simxGetObjectHandle(clientID,'UR5_2',vrep.simx_opmode_blocking);
+        
+        % starting simulation:
+        vrep.simxStartSimulation(clientID,vrep.simx_opmode_blocking);
+        
+        %getting poses
+        
+        [~,cuboidPosition] = vrep.simxGetObjectPosition(clientID,cuboidHandle,-1,)
+        
+        startPose = [0.075 0.2 0.05 0 0 0];
+        pathType = "circular";
+
+        step = 10e-3;
+        radius = 0.2;
+        speed = 0.1;
+        width = 0.1;
+
+        circularPathDatabase = generate_object_path(startPose, pathType, step, radius, speed);
+        leftArmDatabase = generate_left_arm_database(circularPathDatabase,width);
+        rightArmDatabase = generate_right_arm_database(circularPathDatabase,width);
+        %plot3(circularPathDatabase(:,1),circularPathDatabase(:,2),circularPathDatabase(:,3),leftArmDatabase(:,1),leftArmDatabase(:,2),leftArmDatabase(:,3),rightArmDatabase(:,1),rightArmDatabase(:,2),rightArmDatabase(:,3))
+        
+        
+        vrep.simxFinish(clientID);
+else
+    disp('Failed connecting to remote API server');
+end
+
+vrep.delete();
+
+disp('Simulation ended');

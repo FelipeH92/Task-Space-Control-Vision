@@ -1,0 +1,16 @@
+% Save Images Dissertação
+
+figure(1)
+plot(SimulationTime,absErrorLeftDatabase);
+title('Erro Absoluto do UR51');
+grid on;
+xlabel('Tempo de Simulação');
+ylabel('Posição');
+
+figure(2);
+plot(SimulationTime,UR5_1_JointSpeed(:,1),SimulationTime,UR5_1_JointSpeed(:,2),SimulationTime,UR5_1_JointSpeed(:,3),SimulationTime,UR5_1_JointSpeed(:,4),SimulationTime,UR5_1_JointSpeed(:,5),SimulationTime,UR5_1_JointSpeed(:,6));
+title('Velocidade de junta');
+grid on;
+xlabel('Tempo de Simulação');
+ylabel('Velocidade (rad/s)');
+legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6');

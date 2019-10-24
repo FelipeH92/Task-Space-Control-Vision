@@ -1,0 +1,246 @@
+#URToolboxScript
+#
+# UR Toolbox Script
+#   UR Script interface for controlling smooth trajectories of Universal 
+#   Robot manipulators. This script is intended for use with the UR class 
+#   included with the UR Toolbox for MATLAB.
+#
+# This script leverages a PID controller on the trajectory error in joint 
+# space. Three scalar gain values are defined:
+#   Kp - proportional gain applied to difference between the desired and 
+#        current joint configuration.
+#   Ki - integral gain applied to the integral of the difference between 
+#        the desired and current joint configuration.
+#           -> NOTE: Large values of Ki can lead to integrator windup 
+#                    issues.
+#   Kd - velocity tracking gain applied to the desired joint velocity.
+#
+# Basic Controller Equation:
+#   qdot = Kp(qd-q) + Ki*integral(qd-q)dt + Kd*qd_dot
+#
+# Basic Controller Equation (LaTeX):
+#   \dot{q} = K_p (q_{d}(t) - q(t)) + K_i \int_{0}^{t}(q_{d}(t) - q(t)) + K_d \dot(q_{d}(t))dt
+#
+# Valid Script Inputs:
+#   Joint Trajectory Waypoint Command (using PID controller)
+#       12 element floating point array containing:
+#           qd - 6 element desired joint position
+#           qd_dot - 6 element desired joint velocity
+#       msg = (%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f)
+#   Controller Gain Update Command
+#       3 element floating point array containing:
+#           Kp - scalar proportional gain
+#           Ki - scalar integral gain
+#           Kd - scalar derivative gain
+#       msg = (%f,%f,%f)
+#   Joint Position Command (using movej, linear movement in joint space)
+#       7 element floating point array containing:
+#           qd - 6 element desired joint position
+#       msg = (1,%f,%f,%f,%f,%f,%f)
+#   Joint Velocity Command (using speedj)
+#       7 element floating point array containing:
+#           qd_dot - 6 element desired joint velocity
+#       msg = (2,%f,%f,%f,%f,%f,%f)
+#   Joint Position Command (using movel, linear movement in task space)
+#       7 element floating point array containing:
+#           qd - 6 element desired joint position
+#       msg = (3,%f,%f,%f,%f,%f,%f)
+#
+# K. Strotz, M. Kutzer, & L. DeVries, 15Aug2016, USNA
+
+# Close any existing socket connections
+socket_close()
+
+# Establish new parameters and open connection to server
+# ADDRESS = "${HOSTNAME}"   # Auto generate hostname
+ADDRESS = "192.168.0.103"        # Hardcoded hostname
+# PORT = ${HOSTPORT}        # Auto generate portname
+PORT = 30013                # Hardcoded portname
+
+isRunning = socket_open(ADDRESS,PORT)   # Open socket
+
+###########################################################################
+# Check socket
+###########################################################################
+if isRunning:
+    textmsg("Successfully connected to server.")
+    textmsg("-> Address: ",ADDRESS)
+    textmsg("-> Port: ",PORT)
+else:
+    textmsg("Unable to connect to server.")
+    textmsg("-> Address: ",ADDRESS)
+    textmsg("-> Port: ",PORT)
+end
+
+###########################################################################
+# Initialize global variables
+###########################################################################
+# Set initial trigger conditions
+jmotionTrigger = False      # Standard motion module function trigger
+
+# Set initial motion type flag
+jmotionFlag = False
+
+# Initialize gains
+Kp = 1.0
+Ki = 0.0
+Kd = 0.0
+
+# Initialize joint values
+qd = get_actual_joint_positions()   # Initialize desired joint positions
+q = get_actual_joint_positions()    # Initialize current joint positions
+q_dot = [0,0,0,0,0,0]               # Initialize current joint velocities
+qd_dot = [0,0,0,0,0,0]              # Initialize desired joint velocities
+
+# Initialize timer parameters
+frame = 0       # Current frame
+dt = 0.008      # Frame time (seconds)
+t = 0           # Current script time (seconds)
+New_t = 0       # Updated time (seconds)
+Old_t = 0       # Previous time (seconds)
+
+# Initialize motion parameters
+v = 1.05            # Joint velocity of leading axis (rad/s)
+a = 1.40            # Joint acceleration of leading axis (rad/s^2)
+n_min = 9           # Number of frames before function returns
+t_min = n_min*dt    # minimal time before function returns
+
+###########################################################################
+# Timing using threads and frames
+#   Time is estimated using the UR documentation assuming every thread is 
+#   executed in 0.008 seconds (125 Hz). Each thread increments the frame 
+#   and subsequently the time associated.
+# 
+#   NOTE: This is a current work-around until a URscript time parameter is 
+#         available. There is no current documentation in the URscript API 
+#         to access the UR system time. This should be replaced in the 
+#         future.
+###########################################################################
+
+###########################################################################
+# Define control thread
+###########################################################################
+thread controlThread():
+    while isRunning:
+        
+        # Update frame and time
+        frame = frame + 1
+        t = frame * dt
+
+        if jmotionTrigger:
+            ###############################################################
+            # Define standard motion module
+            ###############################################################
+            New_t = t       # Get current time
+
+            if jmotionFlag == True:
+                # speedj
+                if New_t - Old_t < 0.5:
+                    speedj(qd_dot,a,t_min)      # Set joint velocity
+                    frame = frame + (n_min)   # Account for speedj execution
+                else:
+                    # Stop movement
+                    speedj([0,0,0,0,0,0],a,t_min)   # Zero joint velocity
+                    frame = frame + (n_min)       # Account for speedj execution
+                    
+                    textmsg("Joint velocity timeout.")
+                    jmotionTrigger = False
+                end
+            else:
+                # No motion is required
+                #   Sleep for part of frame prior to sync()
+                jmotionTrigger = False
+                sleep(dt/2)
+            end
+
+        else:
+            # No motion is required
+            #   Sleep for part of frame prior to sync()
+            sleep(dt/2)
+        
+        end # trigger
+        
+        sync()
+
+    end # running
+end # thread
+
+###########################################################################
+# Start threads
+###########################################################################
+controlHandle = run controlThread()
+
+###########################################################################
+# Check if threads are running
+###########################################################################
+if controlHandle:
+    textmsg("Control thread is running.")
+else:
+    textmsg("Unable to start control thread.")
+    isRunning = False
+end
+
+###########################################################################
+# Begin main loop
+#   Receive values from socket,
+#   Calculate velocities, and 
+#   Send velocities hand off to thread
+###########################################################################
+t = 0       # Reinitialize time 
+frame = 0   # Reinitialize frame
+iter = 0    # Main loop iteration counter
+while isRunning:
+    # Get current command
+    msg = socket_read_ascii_float(7)   # Read message
+
+    if msg[0] <= 0:
+        # No message received
+    elif msg[0] == 6:
+        ###############################################################
+        # Joint velocity command (using speedj)
+        ###############################################################
+        jmotionFlag = True        # Set motion flag
+
+        qd_dot = [msg[1],msg[2],msg[3],msg[4],msg[5],msg[6]]    # Define desired joint position
+
+        textmsg("Joint velocity command (using speedj): ",t)    # Display message description
+        textmsg("-> speedj: ", qd_dot)                          # Display joint velocity
+
+        Old_t = t                   # Reinitialize prior time
+        jmotionTrigger = True       # Enable standard motion module
+    else:
+        textmsg("Invalid message identifier: ",t)
+        textmsg("-> msg: ", msg)
+    end
+    
+    if t < 0:
+        isRunning = False
+        break
+    else:
+        isRunning = True
+    end
+    
+    # Display main loop iteration, frame number, and estimated time
+    iter = iter + 1
+    #textmsg(iter)
+    #textmsg(frame)
+    #textmsg("t = ",t)
+    textmsg("[Loop Iteration, Frame, Time (s)]: ", [iter, frame, t])
+    
+    sync()
+end
+
+###########################################################################
+# Terminate program
+###########################################################################
+if controlHandle:
+    textmsg("Killing control thread.")
+    join controlHandle  # Allow thre thread to finish
+    kill controlHandle  # Kill the thread (this is redundant)
+end
+
+textmsg("Closing socket.")
+socket_close()
+
+textmsg("Terminating program.")
+halt    # Terminate the program
