@@ -1,0 +1,20 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/nascimento/Projects/Task-Space-Control-Vision/Task-Space-Control-Vision/Experiments/src/Vision - cpp/camTest.c
+signal.h
+-
+stdbool.h
+-
+stdio.h
+-
+string.h
+-
+libfreenect.h
+-
+

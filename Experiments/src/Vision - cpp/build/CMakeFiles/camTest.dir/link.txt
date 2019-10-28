@@ -1,0 +1,1 @@
+/usr/bin/cc     CMakeFiles/camTest.dir/camTest.c.o  -o camTest -rdynamic -lfreenect 

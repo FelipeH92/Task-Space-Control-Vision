@@ -1,0 +1,4 @@
+/home/nascimento/Projects/Task-Space-Control-Vision/Task-Space-Control-Vision/Experiments/src/Vision - cpp/build/CMakeFiles/edit_cache.dir
+/home/nascimento/Projects/Task-Space-Control-Vision/Task-Space-Control-Vision/Experiments/src/Vision - cpp/build/CMakeFiles/camTest.dir
+/home/nascimento/Projects/Task-Space-Control-Vision/Task-Space-Control-Vision/Experiments/src/Vision - cpp/build/CMakeFiles/rebuild_cache.dir
+/home/nascimento/Projects/Task-Space-Control-Vision/Task-Space-Control-Vision/Experiments/src/Vision - cpp/build/CMakeFiles/kinectTest.dir
